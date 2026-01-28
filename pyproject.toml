@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "superrocketlib"
+version = "0.1.0"
+description = "Uma extensão poderosa para adicionar funcionalidades ao RocketPy"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+  {name = "Brendo Almeida", email = "brendolee2004@outlook.com"}
+]
+
+dependencies = [
+    "rocketpy>=1.11.0",
+    "numpy",
+    "scipy",
+    "matplotlib"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/BrendoAlmeida/superrocketlib"
+"Bug Tracker" = "https://github.com/BrendoAlmeida/superrocketlib/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
