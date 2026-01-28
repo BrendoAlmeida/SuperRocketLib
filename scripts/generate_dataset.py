@@ -148,6 +148,8 @@ def _append_rows_to_csv(rows: list[dict], csv_path: Path, fieldnames: list[str])
 
 
 def build_params(seed: int = 33) -> dict:
+	params: dict = {"ok": True, "error": ""}
+	rocket = None
 	try:
 		config = DEFAULT_CONFIG
 		rocket = SuperRocket.generate_random(config, seed=seed)
@@ -172,6 +174,20 @@ def build_params(seed: int = 33) -> dict:
 		heading = flight_ranges.heading.random() if flight_ranges else 90.0
 		max_time = flight_ranges.max_time.random() if flight_ranges else 600.0
 
+		params["environment"] = {
+			"gravity": gravity,
+			"latitude": latitude,
+			"longitude": longitude,
+			"elevation": elevation,
+			"max_expected_height": max_expected_height,
+		}
+		params["flight_config"] = {
+			"rail_length": rail_length,
+			"inclination": inclination,
+			"heading": heading,
+			"max_time": max_time,
+		}
+
 		rocket.simulate_motor()
 		rocket.simulate_aerodynamics()
 
@@ -188,37 +204,31 @@ def build_params(seed: int = 33) -> dict:
 			elevation=elevation,
 			max_expected_height=max_expected_height,
 		)
-		flight_summary = rocket.simulate_flight(
-			env,
-			rail_length=rail_length,
-			inclination=inclination,
-			heading=heading,
-			max_time=max_time,
-			**FLIGHT_KWARGS,
-		)
-		rocket.simulation_results["flight"] = flight_summary
+		try:
+			flight_summary = rocket.simulate_flight(
+				env,
+				rail_length=rail_length,
+				inclination=inclination,
+				heading=heading,
+				max_time=max_time,
+				**FLIGHT_KWARGS,
+			)
+			rocket.simulation_results["flight"] = flight_summary
+		except Exception as exc:
+			params["ok"] = False
+			params["error"] = f"flight_error: {exc}"
 
-		params = {
-			"ok": True,
-			"error": "",
-			"environment": {
-				"gravity": gravity,
-				"latitude": latitude,
-				"longitude": longitude,
-				"elevation": elevation,
-				"max_expected_height": max_expected_height,
-			},
-			"flight_config": {
-				"rail_length": rail_length,
-				"inclination": inclination,
-				"heading": heading,
-				"max_time": max_time,
-			},
-		}
 		params.update(rocket.export_to_dict())
 		return params
 	except Exception as exc:
-		return {"ok": False, "error": str(exc)}
+		params["ok"] = False
+		params["error"] = str(exc)
+		if rocket is not None:
+			try:
+				params.update(rocket.export_to_dict())
+			except Exception:
+				pass
+		return params
 
 def _build_params_worker(seed: int) -> dict:
 	return _flatten_params(build_params(seed=seed))
@@ -257,6 +267,18 @@ def main() -> None:
 		help="Minimum integration time step",
 	)
 	parser.add_argument(
+		"--rtol",
+		type=float,
+		default=1e-4,
+		help="Relative tolerance for ODE solver",
+	)
+	parser.add_argument(
+		"--atol",
+		type=float,
+		default=1e-7,
+		help="Absolute tolerance for ODE solver",
+	)
+	parser.add_argument(
 		"--workers",
 		type=int,
 		default=mp.cpu_count(),
@@ -274,6 +296,8 @@ def main() -> None:
 		"terminate_on_apogee": args.terminate_on_apogee,
 		"max_time_step": args.max_time_step,
 		"min_time_step": args.min_time_step,
+		"rtol": args.rtol,
+		"atol": args.atol,
 	}
 
 	num = max(1, args.num)
