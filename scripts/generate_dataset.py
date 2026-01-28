@@ -4,6 +4,7 @@ import logging
 import multiprocessing as mp
 import time
 from pathlib import Path
+from typing import Union
 
 from rocketpy import Environment
 
@@ -119,7 +120,7 @@ def _flatten_params(data: dict, prefix: str = "") -> dict:
 	return flattened
 
 
-def write_params_to_csv(rows: list[dict], csv_path: str | Path) -> None:
+def write_params_to_csv(rows: list[dict], csv_path: Union[str, Path]) -> None:
 	path = Path(csv_path)
 	path.parent.mkdir(parents=True, exist_ok=True)
 
