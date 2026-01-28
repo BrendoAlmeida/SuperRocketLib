@@ -2,6 +2,7 @@ import argparse
 import csv
 import logging
 import multiprocessing as mp
+import signal
 import time
 from pathlib import Path
 from typing import Union
@@ -14,6 +15,15 @@ from superrocketlib import SuperRocket, DEFAULT_CONFIG
 logger = logging.getLogger(__name__)
 
 FLIGHT_KWARGS: dict = {}
+FLIGHT_TIMEOUT: int = 0
+
+
+class FlightTimeoutError(Exception):
+	pass
+
+
+def _alarm_handler(signum, frame):
+	raise FlightTimeoutError("flight_timeout")
 
 
 def _aggregate_curve_stats(curve: list[tuple[float, float]], prefix: str) -> dict:
@@ -205,6 +215,9 @@ def build_params(seed: int = 33) -> dict:
 			max_expected_height=max_expected_height,
 		)
 		try:
+			if FLIGHT_TIMEOUT > 0:
+				signal.signal(signal.SIGALRM, _alarm_handler)
+				signal.alarm(FLIGHT_TIMEOUT)
 			flight_summary = rocket.simulate_flight(
 				env,
 				rail_length=rail_length,
@@ -214,9 +227,15 @@ def build_params(seed: int = 33) -> dict:
 				**FLIGHT_KWARGS,
 			)
 			rocket.simulation_results["flight"] = flight_summary
+		except FlightTimeoutError:
+			params["ok"] = False
+			params["error"] = "flight_timeout"
 		except Exception as exc:
 			params["ok"] = False
 			params["error"] = f"flight_error: {exc}"
+		finally:
+			if FLIGHT_TIMEOUT > 0:
+				signal.alarm(0)
 
 		params.update(rocket.export_to_dict())
 		return params
@@ -284,6 +303,12 @@ def main() -> None:
 		default=mp.cpu_count(),
 		help="Number of worker processes",
 	)
+	parser.add_argument(
+		"--flight-timeout",
+		type=int,
+		default=120,
+		help="Max seconds allowed per flight simulation (0 to disable)",
+	)
 	args = parser.parse_args()
 
 	logging.basicConfig(
@@ -291,7 +316,7 @@ def main() -> None:
 		format="%(asctime)s %(levelname)s %(message)s",
 	)
 
-	global FLIGHT_KWARGS
+	global FLIGHT_KWARGS, FLIGHT_TIMEOUT
 	FLIGHT_KWARGS = {
 		"terminate_on_apogee": args.terminate_on_apogee,
 		"max_time_step": args.max_time_step,
@@ -299,6 +324,7 @@ def main() -> None:
 		"rtol": args.rtol,
 		"atol": args.atol,
 	}
+	FLIGHT_TIMEOUT = max(0, int(args.flight_timeout))
 
 	num = max(1, args.num)
 	seeds = [args.seed + i for i in range(num)]
