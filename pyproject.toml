@@ -14,7 +14,7 @@ authors = [
 ]
 
 dependencies = [
-    "rocketpy>=1.11.0",
+    "rocketpy>=1.10.0",
     "numpy",
     "scipy",
     "matplotlib"
