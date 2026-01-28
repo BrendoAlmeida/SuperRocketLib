@@ -13,6 +13,8 @@ from superrocketlib import SuperRocket, DEFAULT_CONFIG
 
 logger = logging.getLogger(__name__)
 
+FLIGHT_KWARGS: dict = {}
+
 
 def _aggregate_curve_stats(curve: list[tuple[float, float]], prefix: str) -> dict:
 	"""Converte curva de empuxo em features estatísticas para ML."""
@@ -192,6 +194,7 @@ def build_params(seed: int = 33) -> dict:
 			inclination=inclination,
 			heading=heading,
 			max_time=max_time,
+			**FLIGHT_KWARGS,
 		)
 		rocket.simulation_results["flight"] = flight_summary
 
@@ -234,12 +237,44 @@ def main() -> None:
 	parser.add_argument("--seed", type=int, default=33, help="Base random seed")
 	parser.add_argument("--log-every", type=int, default=10, help="Log progress every N rockets")
 	parser.add_argument("--log-interval", type=float, default=10.0, help="Log heartbeat every N seconds")
+	parser.add_argument(
+		"--no-terminate-on-apogee",
+		action="store_false",
+		dest="terminate_on_apogee",
+		default=True,
+		help="Do not stop simulation at apogee",
+	)
+	parser.add_argument(
+		"--max-time-step",
+		type=float,
+		default=0.5,
+		help="Maximum integration time step",
+	)
+	parser.add_argument(
+		"--min-time-step",
+		type=float,
+		default=1e-3,
+		help="Minimum integration time step",
+	)
+	parser.add_argument(
+		"--workers",
+		type=int,
+		default=mp.cpu_count(),
+		help="Number of worker processes",
+	)
 	args = parser.parse_args()
 
 	logging.basicConfig(
 		level=logging.INFO,
 		format="%(asctime)s %(levelname)s %(message)s",
 	)
+
+	global FLIGHT_KWARGS
+	FLIGHT_KWARGS = {
+		"terminate_on_apogee": args.terminate_on_apogee,
+		"max_time_step": args.max_time_step,
+		"min_time_step": args.min_time_step,
+	}
 
 	num = max(1, args.num)
 	seeds = [args.seed + i for i in range(num)]
@@ -253,7 +288,7 @@ def main() -> None:
 	processed = 0
 	logger.info("Iniciando geração de %s foguetes", num)
 	try:
-		with mp.Pool(processes=mp.cpu_count()) as pool:
+		with mp.Pool(processes=max(1, args.workers)) as pool:
 			iterator = pool.imap_unordered(_build_params_worker, seeds, chunksize=1)
 			while processed < num:
 				try:
