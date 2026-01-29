@@ -63,6 +63,10 @@ class SuperNoseCone(NoseCone):
             )
             if hasattr(rocket, "nose") and hasattr(rocket.nose, "length"):
                 self.length = rocket.nose.length
+                if hasattr(rocket.nose, "bluffness") and rocket.nose.bluffness is not None:
+                    self.bluffness = rocket.nose.bluffness
+                if hasattr(rocket.nose, "power") and rocket.nose.power is not None:
+                    self.power = rocket.nose.power
         else:
             rocket.add_surfaces(self, position)
 
@@ -144,6 +148,17 @@ class SuperTrapezoidalFins(TrapezoidalFins):
                 cant_angle=self.cant_angle,
                 sweep_length=self.sweep_length,
             )
+            # Captura valores reais após ajustes do RocketPy
+            if hasattr(rocket, "fins") and len(rocket.fins) > 0:
+                added_fins = rocket.fins[-1]
+                if hasattr(added_fins, "n"):
+                    self.n = added_fins.n
+                if hasattr(added_fins, "root_chord"):
+                    self.root_chord = added_fins.root_chord
+                if hasattr(added_fins, "tip_chord"):
+                    self.tip_chord = added_fins.tip_chord
+                if hasattr(added_fins, "span"):
+                    self.span = added_fins.span
         else:
             rocket.add_surfaces(self, position)
 
@@ -213,6 +228,13 @@ class SuperTail(Tail):
                 length=self.length,
                 position=position,
             )
+            # Captura valores reais após ajustes do RocketPy
+            if hasattr(rocket, "tail") and hasattr(rocket.tail, "length"):
+                self.length = rocket.tail.length
+                if hasattr(rocket.tail, "top_radius"):
+                    self.top_radius = rocket.tail.top_radius
+                if hasattr(rocket.tail, "bottom_radius"):
+                    self.bottom_radius = rocket.tail.bottom_radius
         else:
             rocket.add_surfaces(self, position)
 

@@ -144,13 +144,25 @@ def select_top_candidates(candidates: list[dict]) -> list[dict]:
 	return top_picks
 
 
-def simulate_candidate(rocket_dict: dict, env: Environment, flight_kwargs: dict) -> float | None:
+def simulate_candidate(rocket_dict: dict, env: Environment, flight_kwargs: dict) -> tuple[float | None, dict]:
 	try:
 		rocket = SuperRocket.from_dict(rocket_dict)
+		# Captura valores reais após ajustes do RocketPy
+		if hasattr(rocket, 'nose_component') and rocket.nose_component:
+			rocket_dict['nosecone.length'] = rocket.nose_component.length
+		if hasattr(rocket, 'fins_component') and rocket.fins_component:
+			rocket_dict['fins.span'] = rocket.fins_component.span
+			rocket_dict['fins.root_chord'] = rocket.fins_component.root_chord
+			rocket_dict['fins.tip_chord'] = rocket.fins_component.tip_chord
+		if hasattr(rocket, 'tail_component') and rocket.tail_component:
+			rocket_dict['tail.length'] = rocket.tail_component.length
+			rocket_dict['tail.top_radius'] = rocket.tail_component.top_radius
+			rocket_dict['tail.bottom_radius'] = rocket.tail_component.bottom_radius
+		
 		result = rocket.simulate(env, **flight_kwargs)
-		return result.get("apogee") if isinstance(result, dict) else None
+		return (result.get("apogee") if isinstance(result, dict) else None), rocket_dict
 	except Exception:
-		return None
+		return None, rocket_dict
 
 
 def smart_sweep_refinement(

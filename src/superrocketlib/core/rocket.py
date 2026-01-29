@@ -137,22 +137,13 @@ class SuperRocket(Rocket):
         RocketValidator.log_warnings(motor_position_validation)
         motor_position_validation.raise_if_errors()
 
-        fin_area = fins.planform_area() * fins.n
-        drag_params = DragCurveParameters(
-            rocket_radius=rocket_radius,
-            rocket_length=rocket_length,
-            fin_area=fin_area,
-            fin_count=fins.n,
-            tail_bottom_radius=tail.bottom_radius,
-        )
-        power_off_drag, power_on_drag = DragCurveGenerator.generate(drag_params)
-
+        # Criar rocket com drag temporário (será recalculado após ajustes)
         rocket = cls(
             radius=rocket_radius,
             mass=mass,
             inertia=inertia,
-            power_off_drag=power_off_drag,
-            power_on_drag=power_on_drag,
+            power_off_drag=[(0, 0), (1, 0)],  # Placeholder
+            power_on_drag=[(0, 0), (1, 0)],   # Placeholder
             center_of_mass_without_motor=center_of_mass_without_motor,
             coordinate_system_orientation=config.rocket.coordinate_system_orientation,
         )
@@ -166,6 +157,19 @@ class SuperRocket(Rocket):
         nose.add_to_rocket(rocket, position=nose_position)
         tail.add_to_rocket(rocket, position=tail_position)
         fins.add_to_rocket(rocket, position=fins_position)
+        
+        # Recalcular drag com valores reais após ajustes do RocketPy
+        fin_area = fins.planform_area() * fins.n
+        drag_params = DragCurveParameters(
+            rocket_radius=rocket_radius,
+            rocket_length=rocket_length,
+            fin_area=fin_area,
+            fin_count=fins.n,
+            tail_bottom_radius=tail.bottom_radius,
+        )
+        power_off_drag, power_on_drag = DragCurveGenerator.generate(drag_params)
+        rocket.power_off_drag = power_off_drag
+        rocket.power_on_drag = power_on_drag
 
         if hasattr(rocket, "add_parachute"):
             rocket.add_parachute(
@@ -360,22 +364,13 @@ class SuperRocket(Rocket):
             rocket_radius=rocket_radius,
         )
 
-        fin_area = fins.planform_area() * fins.n
-        drag_params = DragCurveParameters(
-            rocket_radius=rocket_radius,
-            rocket_length=rocket_length,
-            fin_area=fin_area,
-            fin_count=fins.n,
-            tail_bottom_radius=tail.bottom_radius,
-        )
-        power_off_drag, power_on_drag = DragCurveGenerator.generate(drag_params)
-
+        # Criar rocket com drag placeholder (será recalculado após ajustes)
         rocket = cls(
             radius=rocket_radius,
             mass=mass,
             inertia=inertia,
-            power_off_drag=power_off_drag,
-            power_on_drag=power_on_drag,
+            power_off_drag=[(0, 0), (1, 0)],  # Placeholder
+            power_on_drag=[(0, 0), (1, 0)],   # Placeholder
             center_of_mass_without_motor=center_of_mass_without_motor,
             coordinate_system_orientation=_get(
                 "coordinate_system_orientation", "tail_to_nose"
@@ -392,6 +387,22 @@ class SuperRocket(Rocket):
         nose.add_to_rocket(rocket, position=nose_position)
         tail.add_to_rocket(rocket, position=tail_position)
         fins.add_to_rocket(rocket, position=fins_position)
+        
+        # Recalcular posições após ajustes do RocketPy
+        nose_position = max(rocket_length - nose.length, 0.0)
+        
+        # Recalcular drag com valores reais após ajustes do RocketPy
+        fin_area = fins.planform_area() * fins.n
+        drag_params = DragCurveParameters(
+            rocket_radius=rocket_radius,
+            rocket_length=rocket_length,
+            fin_area=fin_area,
+            fin_count=fins.n,
+            tail_bottom_radius=tail.bottom_radius,
+        )
+        power_off_drag, power_on_drag = DragCurveGenerator.generate(drag_params)
+        rocket.power_off_drag = power_off_drag
+        rocket.power_on_drag = power_on_drag
 
         if hasattr(rocket, "add_parachute"):
             rocket.add_parachute(
