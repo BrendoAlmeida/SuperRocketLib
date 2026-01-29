@@ -32,6 +32,41 @@ def _ensure_rocketpy_function(curve):
         return curve
 
 
+def _update_component_position(component, position: float) -> None:
+    if component is None:
+        return
+    if hasattr(component, "position"):
+        try:
+            component.position = position
+            return
+        except Exception:
+            pass
+    if hasattr(component, "set_position"):
+        try:
+            component.set_position(position)
+            return
+        except Exception:
+            pass
+    if hasattr(component, "_position"):
+        try:
+            component._position = position
+        except Exception:
+            pass
+
+
+def _extract_static_margin_value(static_margin) -> Optional[float]:
+    if static_margin is None:
+        return None
+    if isinstance(static_margin, (int, float)):
+        return float(static_margin)
+    if callable(static_margin):
+        try:
+            return float(static_margin(0.0, 0.0))
+        except Exception:
+            return None
+    return None
+
+
 class SuperRocket(Rocket):
     """RocketPy Rocket com geração aleatória de parâmetros e componentes."""
 
@@ -163,6 +198,7 @@ class SuperRocket(Rocket):
 
         rocket.add_motor(motor, position=motor_position)
 
+        original_nose_length = nose.length
         nose_position = max(rocket_length - nose.length, 0.0)
         tail_position = 0.0
         fins_position = rocket_length * 0.1
@@ -170,6 +206,14 @@ class SuperRocket(Rocket):
         nose.add_to_rocket(rocket, position=nose_position)
         tail.add_to_rocket(rocket, position=tail_position)
         fins.add_to_rocket(rocket, position=fins_position)
+        
+        # 1. Primeiro atualizamos a referência Mestra (Comprimento Total)
+        rocket_length = max(rocket_length + (nose.length - original_nose_length), 0.0)
+
+        # 2. Agora recalculamos a posição baseada no NOVO comprimento
+        # (Isso deve manter a posição da base do nariz inalterada, ex: 8.0)
+        nose_position = max(rocket_length - nose.length, 0.0)
+        _update_component_position(getattr(rocket, "nose", None), nose_position)
         
         # Recalcular drag com valores reais após ajustes do RocketPy
         fin_area = fins.planform_area() * fins.n
@@ -183,6 +227,16 @@ class SuperRocket(Rocket):
         power_off_drag, power_on_drag = DragCurveGenerator.generate(drag_params)
         rocket.power_off_drag = _ensure_rocketpy_function(power_off_drag)
         rocket.power_on_drag = _ensure_rocketpy_function(power_on_drag)
+        if hasattr(rocket, "evaluate_static_margin"):
+            try:
+                static_margin = rocket.evaluate_static_margin()
+                static_margin_value = _extract_static_margin_value(static_margin)
+            except Exception:
+                static_margin_value = None
+            if static_margin_value is not None and static_margin_value < 1.0:
+                raise ValueError(
+                    f"Static margin after adjustments is unstable: {static_margin_value:.3f}"
+                )
 
         if hasattr(rocket, "add_parachute"):
             rocket.add_parachute(
@@ -393,6 +447,7 @@ class SuperRocket(Rocket):
         motor_position = float(_get("motor_position", rocket_length * 0.1))
         rocket.add_motor(motor, position=motor_position)
 
+        original_nose_length = nose.length
         nose_position = float(_get("nose_position", max(rocket_length - nose.length, 0.0)))
         tail_position = float(_get("tail_position", 0.0))
         fins_position = float(_get("fins_position", rocket_length * 0.1))
@@ -401,8 +456,13 @@ class SuperRocket(Rocket):
         tail.add_to_rocket(rocket, position=tail_position)
         fins.add_to_rocket(rocket, position=fins_position)
         
-        # Recalcular posições após ajustes do RocketPy
+        # 1. Primeiro atualizamos a referência Mestra (Comprimento Total)
+        rocket_length = max(rocket_length + (nose.length - original_nose_length), 0.0)
+
+        # 2. Agora recalculamos a posição baseada no NOVO comprimento
+        # (Isso deve manter a posição da base do nariz inalterada, ex: 8.0)
         nose_position = max(rocket_length - nose.length, 0.0)
+        _update_component_position(getattr(rocket, "nose", None), nose_position)
         
         # Recalcular drag com valores reais após ajustes do RocketPy
         fin_area = fins.planform_area() * fins.n
@@ -416,6 +476,11 @@ class SuperRocket(Rocket):
         power_off_drag, power_on_drag = DragCurveGenerator.generate(drag_params)
         rocket.power_off_drag = _ensure_rocketpy_function(power_off_drag)
         rocket.power_on_drag = _ensure_rocketpy_function(power_on_drag)
+        if hasattr(rocket, "evaluate_static_margin"):
+            try:
+                rocket.evaluate_static_margin()
+            except Exception:
+                pass
 
         if hasattr(rocket, "add_parachute"):
             rocket.add_parachute(
