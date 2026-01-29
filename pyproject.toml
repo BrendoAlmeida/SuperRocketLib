@@ -17,7 +17,11 @@ dependencies = [
     "rocketpy>=1.10.0",
     "numpy",
     "scipy",
-    "matplotlib"
+    "matplotlib",
+    "scikit-learn",
+    "pandas",
+    "xgboost",
+    "torch"
 ]
 
 [project.urls]

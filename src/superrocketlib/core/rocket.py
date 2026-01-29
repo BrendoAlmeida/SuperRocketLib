@@ -11,7 +11,12 @@ from ..components.motor import SuperMotor
 from ..components.aerodynamics import SuperNoseCone, SuperTrapezoidalFins, SuperTail
 from ..components.parachute import SuperParachute
 from ..components.rail_buttons import SuperRailButtons
-from ..generators.curve_generators import DragCurveGenerator, DragCurveParameters
+from ..generators.curve_generators import (
+    DragCurveGenerator,
+    DragCurveParameters,
+    ThrustCurveGenerator,
+    ThrustCurveParameters,
+)
 
 
 class SuperRocket(Rocket):
@@ -200,6 +205,234 @@ class SuperRocket(Rocket):
         rocket._fins_position = fins_position
         rocket._tail_position = tail_position
         rocket._coordinate_system_orientation = config.rocket.coordinate_system_orientation
+
+        return rocket
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SuperRocket":
+        def _get(key: str, default: Any = None) -> Any:
+            value = data.get(key, default)
+            return default if value is None else value
+
+        rocket_radius = float(_get("radius", 0.05))
+        rocket_length = float(_get("rocket_length", rocket_radius * 8.0))
+        wall_thickness = float(_get("wall_thickness", rocket_radius * 0.05))
+        rocket_inner_radius = float(
+            _get("rocket_inner_radius", max(rocket_radius - wall_thickness, rocket_radius * 0.8))
+        )
+        mass = float(_get("mass", 1.0))
+        center_of_mass_without_motor = float(
+            _get("center_of_mass_without_motor", rocket_length * 0.5)
+        )
+        inertia = (
+            float(_get("inertia_11", 0.0)),
+            float(_get("inertia_22", 0.0)),
+            float(_get("inertia_33", 0.0)),
+            float(_get("inertia_12", 0.0)),
+            float(_get("inertia_13", 0.0)),
+            float(_get("inertia_23", 0.0)),
+        )
+
+        motor_diameter = float(_get("motor.motor_diameter", rocket_inner_radius * 1.8))
+        motor_length = float(_get("motor.motor_length", rocket_length * 0.4))
+        nozzle_radius = float(_get("motor.nozzle_radius", motor_diameter * 0.2))
+        throat_radius = float(_get("motor.throat_radius", nozzle_radius * 0.6))
+        dry_mass = float(_get("motor.dry_mass", mass * 0.2))
+        dry_inertia = (
+            float(_get("motor.dry_inertia_11", 0.0)),
+            float(_get("motor.dry_inertia_22", 0.0)),
+            float(_get("motor.dry_inertia_33", 0.0)),
+            float(_get("motor.dry_inertia_12", 0.0)),
+            float(_get("motor.dry_inertia_13", 0.0)),
+            float(_get("motor.dry_inertia_23", 0.0)),
+        )
+        grain_number = int(round(_get("motor.grain_number", 1)))
+        grain_density = float(_get("motor.grain_density", 1500.0))
+        grain_outer_radius = float(_get("motor.grain_outer_radius", motor_diameter * 0.4))
+        grain_initial_inner_radius = float(
+            _get("motor.grain_initial_inner_radius", grain_outer_radius * 0.5)
+        )
+        grain_initial_height = float(_get("motor.grain_initial_height", motor_length * 0.2))
+        grain_separation = float(_get("motor.grain_separation", motor_length * 0.02))
+        grains_center_of_mass_position = float(
+            _get("motor.grains_center_of_mass_position", motor_length * 0.5)
+        )
+        center_of_dry_mass_position = float(
+            _get("motor.center_of_dry_mass_position", motor_length * 0.5)
+        )
+        burn_time = float(_get("motor.burn_time", _get("motor.thrust_curve.burn_time", 1.0)))
+        average_thrust = float(
+            _get("motor.average_thrust", _get("motor.thrust_curve.avg_thrust", 100.0))
+        )
+        peak_thrust_ratio = float(_get("motor.peak_thrust_ratio", 2.0))
+        ignition_duration_fraction = float(_get("motor.ignition_duration_fraction", 0.05))
+        tail_off_fraction = float(_get("motor.tail_off_fraction", 0.08))
+        main_burn_end_ratio = float(_get("motor.main_burn_end_ratio", 1.0))
+        thrust_profile_type = _get("motor.thrust_profile_type", "neutral")
+        curve_points = int(round(_get("motor.thrust_curve_points", 150)))
+
+        curve_params = ThrustCurveParameters(
+            burn_time=burn_time,
+            average_thrust=average_thrust,
+            peak_thrust_ratio=peak_thrust_ratio,
+            ignition_duration_fraction=ignition_duration_fraction,
+            tail_off_fraction=tail_off_fraction,
+            main_burn_end_ratio=main_burn_end_ratio,
+            thrust_profile_type=str(thrust_profile_type),
+            points=curve_points,
+        )
+        thrust_source = ThrustCurveGenerator.generate(curve_params)
+        motor = SuperMotor(
+            motor_diameter=motor_diameter,
+            motor_length=motor_length,
+            thrust_source=thrust_source,
+            dry_mass=dry_mass,
+            dry_inertia=dry_inertia,
+            nozzle_radius=nozzle_radius,
+            throat_radius=throat_radius,
+            grain_number=grain_number,
+            grain_density=grain_density,
+            grain_outer_radius=grain_outer_radius,
+            grain_initial_inner_radius=grain_initial_inner_radius,
+            grain_initial_height=grain_initial_height,
+            grain_separation=grain_separation,
+            grains_center_of_mass_position=grains_center_of_mass_position,
+            center_of_dry_mass_position=center_of_dry_mass_position,
+            burn_time=(0, burn_time),
+            coordinate_system_orientation=_get(
+                "motor.coordinate_system_orientation", "nozzle_to_combustion_chamber"
+            ),
+        )
+        motor.dry_inertia = dry_inertia
+        motor.burn_time = burn_time
+        motor.average_thrust = average_thrust
+        motor.peak_thrust_ratio = peak_thrust_ratio
+        motor.ignition_duration_fraction = ignition_duration_fraction
+        motor.tail_off_fraction = tail_off_fraction
+        motor.main_burn_end_ratio = main_burn_end_ratio
+        motor.thrust_profile_type = thrust_profile_type
+        motor.thrust_curve_points = curve_points
+
+        nose = SuperNoseCone(
+            length=float(_get("nosecone.length", rocket_length * 0.15)),
+            kind=_get("nosecone.kind", "von karman"),
+            base_radius=rocket_radius,
+            bluffness=_get("nosecone.bluffness", None),
+            rocket_radius=rocket_radius,
+            power=_get("nosecone.power", None),
+        )
+
+        fins = SuperTrapezoidalFins(
+            n=int(round(_get("fins.n", 4))),
+            root_chord=float(_get("fins.root_chord", rocket_length * 0.15)),
+            tip_chord=float(_get("fins.tip_chord", rocket_length * 0.08)),
+            span=float(_get("fins.span", rocket_radius * 1.5)),
+            rocket_radius=rocket_radius,
+            sweep_length=float(_get("fins.sweep_length", rocket_length * 0.05)),
+            cant_angle=float(_get("fins.cant_angle", 0.0)),
+        )
+
+        tail = SuperTail(
+            length=float(_get("tail.length", rocket_length * 0.1)),
+            top_radius=float(_get("tail.top_radius", rocket_radius)),
+            bottom_radius=float(_get("tail.bottom_radius", rocket_radius)),
+            rocket_radius=rocket_radius,
+        )
+
+        parachute_noise = (
+            float(_get("parachute.noise[0]", 0.0)),
+            float(_get("parachute.noise[1]", 0.0)),
+            float(_get("parachute.noise[2]", 0.0)),
+        )
+        parachute = SuperParachute(
+            name=str(_get("parachute.name", "Main")),
+            cd_s=float(_get("parachute.cd_s", 1.0)),
+            trigger=float(_get("parachute.trigger", 200.0)),
+            sampling_rate=float(_get("parachute.sampling_rate", 100.0)),
+            lag=float(_get("parachute.lag", 0.5)),
+            noise=parachute_noise,
+        )
+
+        rail_buttons = SuperRailButtons(
+            upper_button_position=float(_get("rail_buttons.upper_button_position", rocket_length * 0.6)),
+            lower_button_position=float(_get("rail_buttons.lower_button_position", rocket_length * 0.2)),
+            angular_position=float(_get("rail_buttons.angular_position", 45.0)),
+            rocket_radius=rocket_radius,
+        )
+
+        fin_area = fins.planform_area() * fins.n
+        drag_params = DragCurveParameters(
+            rocket_radius=rocket_radius,
+            rocket_length=rocket_length,
+            fin_area=fin_area,
+            fin_count=fins.n,
+            tail_bottom_radius=tail.bottom_radius,
+        )
+        power_off_drag, power_on_drag = DragCurveGenerator.generate(drag_params)
+
+        rocket = cls(
+            radius=rocket_radius,
+            mass=mass,
+            inertia=inertia,
+            power_off_drag=power_off_drag,
+            power_on_drag=power_on_drag,
+            center_of_mass_without_motor=center_of_mass_without_motor,
+            coordinate_system_orientation=_get(
+                "coordinate_system_orientation", "tail_to_nose"
+            ),
+        )
+
+        motor_position = float(_get("motor_position", rocket_length * 0.1))
+        rocket.add_motor(motor, position=motor_position)
+
+        nose_position = float(_get("nose_position", max(rocket_length - nose.length, 0.0)))
+        tail_position = float(_get("tail_position", 0.0))
+        fins_position = float(_get("fins_position", rocket_length * 0.1))
+
+        nose.add_to_rocket(rocket, position=nose_position)
+        tail.add_to_rocket(rocket, position=tail_position)
+        fins.add_to_rocket(rocket, position=fins_position)
+
+        if hasattr(rocket, "add_parachute"):
+            rocket.add_parachute(
+                parachute.name,
+                parachute.cd_s,
+                parachute.trigger,
+                parachute.sampling_rate,
+                parachute.lag,
+                parachute.noise,
+            )
+        else:
+            rocket.parachutes.append(parachute)
+
+        if hasattr(rocket, "set_rail_buttons"):
+            rocket.set_rail_buttons(
+                rail_buttons.upper_button_position,
+                rail_buttons.lower_button_position,
+                rail_buttons.angular_position,
+            )
+        else:
+            rocket.rail_buttons = rail_buttons
+
+        rocket.motor_component = motor
+        rocket.nose_component = nose
+        rocket.fins_component = fins
+        rocket.tail_component = tail
+        rocket.parachute_component = parachute
+        rocket.rail_buttons_component = rail_buttons
+
+        rocket._rocket_length = rocket_length
+        rocket._rocket_inner_radius = rocket_inner_radius
+        rocket._wall_thickness = wall_thickness
+        rocket._center_of_mass_without_motor = center_of_mass_without_motor
+        rocket._inertia = inertia
+        rocket._motor_position = motor_position
+        rocket._nose_position = nose_position
+        rocket._fins_position = fins_position
+        rocket._tail_position = tail_position
+        rocket._coordinate_system_orientation = _get(
+            "coordinate_system_orientation", "tail_to_nose"
+        )
 
         return rocket
 

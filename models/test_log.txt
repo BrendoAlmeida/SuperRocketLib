@@ -1,0 +1,4 @@
+Stage 2 (teste)
+Loss: 3.054160
+Recon MSE (mean): 0.043016
+Recon MSE (median): 0.042894

@@ -61,6 +61,8 @@ class SuperNoseCone(NoseCone):
                 bluffness=getattr(self, "bluffness", None),
                 power=getattr(self, "power", None),
             )
+            if hasattr(rocket, "nose") and hasattr(rocket.nose, "length"):
+                self.length = rocket.nose.length
         else:
             rocket.add_surfaces(self, position)
 

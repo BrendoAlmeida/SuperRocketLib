@@ -201,6 +201,12 @@ def build_params(seed: int = 33) -> dict:
 		rocket.simulate_motor()
 		rocket.simulate_aerodynamics()
 
+		# Captura valores reais após ajustes do RocketPy durante a construção
+		if hasattr(rocket, 'nose_component') and rocket.nose_component:
+			rocket.nose_component.length = getattr(rocket.nose_component, 'length', rocket.nose_component.length)
+		if hasattr(rocket, 'fins_component') and rocket.fins_component:
+			rocket.fins_component.span = getattr(rocket.fins_component, 'span', rocket.fins_component.span)
+		
 		static_margin = rocket.evaluate_static_margin()
 		rocket.simulation_results["static_margin"] = static_margin
 
