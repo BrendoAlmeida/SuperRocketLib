@@ -67,6 +67,74 @@ def _extract_static_margin_value(static_margin) -> Optional[float]:
     return None
 
 
+def _function_value_at(function_obj: Any, x_value: Optional[float]) -> Optional[float]:
+    if function_obj is None or x_value is None:
+        return None
+    if callable(function_obj):
+        try:
+            return float(function_obj(x_value))
+        except Exception:
+            pass
+    x_array = getattr(function_obj, "x_array", None)
+    y_array = getattr(function_obj, "y_array", None)
+    if x_array is None or y_array is None:
+        return None
+    if not x_array:
+        return None
+    try:
+        closest_index = min(range(len(x_array)), key=lambda i: abs(x_array[i] - x_value))
+        return float(y_array[closest_index])
+    except Exception:
+        return None
+
+
+def _max_function_value(function_obj: Any) -> Optional[float]:
+    if function_obj is None:
+        return None
+    y_array = getattr(function_obj, "y_array", None)
+    if y_array is None:
+        return None
+    try:
+        return float(max(y_array))
+    except Exception:
+        return None
+
+
+def _last_function_value(function_obj: Any) -> Optional[float]:
+    if function_obj is None:
+        return None
+    if isinstance(function_obj, (int, float)):
+        return float(function_obj)
+    y_array = getattr(function_obj, "y_array", None)
+    if y_array is None:
+        return None
+    try:
+        return float(y_array[-1])
+    except Exception:
+        return None
+
+
+def _extract_drift_value(flight: Any) -> Optional[float]:
+    drift_value = getattr(flight, "drift", None)
+    if isinstance(drift_value, (int, float)):
+        return float(drift_value)
+    if drift_value is not None:
+        last_value = _last_function_value(drift_value)
+        if last_value is not None:
+            return last_value
+    x_func = getattr(flight, "x", None)
+    y_func = getattr(flight, "y", None)
+    t_final = getattr(flight, "t_final", None)
+    if callable(x_func) and callable(y_func) and t_final is not None:
+        try:
+            x_val = float(x_func(t_final))
+            y_val = float(y_func(t_final))
+            return (x_val ** 2 + y_val ** 2) ** 0.5
+        except Exception:
+            return None
+    return None
+
+
 class SuperRocket(Rocket):
     """RocketPy Rocket com geração aleatória de parâmetros e componentes."""
 
@@ -659,6 +727,17 @@ class SuperRocket(Rocket):
             Dicionário com métricas principais.
         """
 
+        out_of_rail_time = getattr(flight, "out_of_rail_time", None)
+        max_speed_time = getattr(flight, "max_speed_time", None)
+        burn_out_time = None
+        motor = getattr(getattr(flight, "rocket", None), "motor", None)
+        if motor is not None:
+            burn_time = getattr(motor, "burn_time", None)
+            if isinstance(burn_time, (list, tuple)) and len(burn_time) > 1:
+                burn_out_time = burn_time[1]
+            else:
+                burn_out_time = getattr(motor, "burn_out_time", None)
+
         return {
             "apogee": getattr(flight, "apogee", None),
             "max_speed": getattr(flight, "max_speed", None),
@@ -669,4 +748,29 @@ class SuperRocket(Rocket):
                 getattr(flight, "max_mach_number", None),
             ),
             "flight_time": getattr(flight, "t_final", None),
+            "out_of_rail_velocity": getattr(flight, "out_of_rail_velocity", None),
+            "static_margin_at_rail_exit": _function_value_at(
+                getattr(flight, "static_margin", None),
+                out_of_rail_time,
+            ),
+            "max_dynamic_pressure": getattr(flight, "max_dynamic_pressure", None),
+            "max_angle_of_attack": getattr(
+                flight,
+                "max_angle_of_attack",
+                _max_function_value(getattr(flight, "angle_of_attack", None)),
+            ),
+            "altitude_at_max_speed": _function_value_at(
+                getattr(flight, "z", None),
+                max_speed_time,
+            ),
+            "velocity_at_burnout": _function_value_at(
+                getattr(flight, "speed", None),
+                burn_out_time,
+            ),
+            "altitude_at_burnout": _function_value_at(
+                getattr(flight, "z", None),
+                burn_out_time,
+            ),
+            "drift": _extract_drift_value(flight),
+            "impact_velocity": getattr(flight, "impact_velocity", None),
         }
