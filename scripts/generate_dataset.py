@@ -1,8 +1,10 @@
 import argparse
 import csv
+import io
 import logging
 import multiprocessing as mp
 import signal
+import sys
 import time
 import warnings
 from pathlib import Path
@@ -325,6 +327,32 @@ def main() -> None:
 	# Suprimir warnings do RocketPy quando não estiver em modo debug
 	if not args.debug:
 		warnings.filterwarnings("ignore", message=".*nose cone length was reduced.*")
+		# RocketPy usa print() para warnings, então redirecionamos stdout/stderr
+		class SuppressRocketPyWarnings:
+			def __init__(self, original_stream):
+				self.original_stream = original_stream
+				self._pending = ""
+			
+			def write(self, text):
+				self._pending += text
+				lines = self._pending.splitlines(keepends=True)
+				if lines and not lines[-1].endswith(("\n", "\r")):
+					self._pending = lines.pop()
+				else:
+					self._pending = ""
+				for line in lines:
+					if "nose cone length was reduced" not in line:
+						self.original_stream.write(line)
+			
+			def flush(self):
+				if self._pending:
+					if "nose cone length was reduced" not in self._pending:
+						self.original_stream.write(self._pending)
+					self._pending = ""
+				self.original_stream.flush()
+		
+		sys.stderr = SuppressRocketPyWarnings(sys.stderr)
+		sys.stdout = SuppressRocketPyWarnings(sys.stdout)
 
 	global FLIGHT_KWARGS, FLIGHT_TIMEOUT
 	FLIGHT_KWARGS = {

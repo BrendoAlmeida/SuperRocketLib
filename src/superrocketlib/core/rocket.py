@@ -4,6 +4,10 @@ from typing import Any, Dict, List, Optional
 import random
 
 from rocketpy import Rocket
+try:
+    from rocketpy import Function as RocketPyFunction
+except Exception:  # pragma: no cover - compatibilidade com versões sem Function
+    RocketPyFunction = None
 
 from .structures import RocketConfigRanges
 from .validators import RocketValidator
@@ -17,6 +21,15 @@ from ..generators.curve_generators import (
     ThrustCurveGenerator,
     ThrustCurveParameters,
 )
+
+
+def _ensure_rocketpy_function(curve):
+    if RocketPyFunction is None:
+        return curve
+    try:
+        return RocketPyFunction(curve)
+    except Exception:
+        return curve
 
 
 class SuperRocket(Rocket):
@@ -168,8 +181,8 @@ class SuperRocket(Rocket):
             tail_bottom_radius=tail.bottom_radius,
         )
         power_off_drag, power_on_drag = DragCurveGenerator.generate(drag_params)
-        rocket.power_off_drag = power_off_drag
-        rocket.power_on_drag = power_on_drag
+        rocket.power_off_drag = _ensure_rocketpy_function(power_off_drag)
+        rocket.power_on_drag = _ensure_rocketpy_function(power_on_drag)
 
         if hasattr(rocket, "add_parachute"):
             rocket.add_parachute(
@@ -401,8 +414,8 @@ class SuperRocket(Rocket):
             tail_bottom_radius=tail.bottom_radius,
         )
         power_off_drag, power_on_drag = DragCurveGenerator.generate(drag_params)
-        rocket.power_off_drag = power_off_drag
-        rocket.power_on_drag = power_on_drag
+        rocket.power_off_drag = _ensure_rocketpy_function(power_off_drag)
+        rocket.power_on_drag = _ensure_rocketpy_function(power_on_drag)
 
         if hasattr(rocket, "add_parachute"):
             rocket.add_parachute(
