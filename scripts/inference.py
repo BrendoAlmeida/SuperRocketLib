@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import warnings
 from pathlib import Path
 
 import joblib
@@ -258,7 +259,16 @@ def main() -> None:
 	parser.add_argument("--samples", type=int, default=100, help="Número de candidatos")
 	parser.add_argument("--models-dir", type=str, default="models", help="Pasta dos modelos")
 	parser.add_argument("--device", type=str, default=None, help="cpu/cuda")
+	parser.add_argument(
+		"--debug",
+		action="store_true",
+		help="Enable debug mode (shows all warnings)",
+	)
 	args = parser.parse_args()
+	
+	# Suprimir warnings do RocketPy quando não estiver em modo debug
+	if not args.debug:
+		warnings.filterwarnings("ignore", message=".*nose cone length was reduced.*")
 
 	device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
 	model_dir = Path(args.models_dir)

@@ -4,6 +4,7 @@ import logging
 import multiprocessing as mp
 import signal
 import time
+import warnings
 from pathlib import Path
 from typing import Union
 
@@ -309,12 +310,21 @@ def main() -> None:
 		default=120,
 		help="Max seconds allowed per flight simulation (0 to disable)",
 	)
+	parser.add_argument(
+		"--debug",
+		action="store_true",
+		help="Enable debug mode (shows all warnings)",
+	)
 	args = parser.parse_args()
 
 	logging.basicConfig(
 		level=logging.INFO,
 		format="%(asctime)s %(levelname)s %(message)s",
 	)
+	
+	# Suprimir warnings do RocketPy quando não estiver em modo debug
+	if not args.debug:
+		warnings.filterwarnings("ignore", message=".*nose cone length was reduced.*")
 
 	global FLIGHT_KWARGS, FLIGHT_TIMEOUT
 	FLIGHT_KWARGS = {
